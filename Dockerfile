@@ -7,8 +7,9 @@ COPY src/ src/
 RUN dotnet publish src/NzbDrone.Console/Sonarr.Console.csproj \
     -c Release \
     -f net10.0 \
+    -r linux-musl-x64 \
     -o /app \
-    -p:SelfContained=false
+    --self-contained
 
 # -- Frontend build --
 FROM node:20-slim AS frontend-build
