@@ -5,6 +5,7 @@ COPY .editorconfig global.json ./
 COPY src/ src/
 RUN dotnet publish src/NzbDrone.Console/Sonarr.Console.csproj \
     -c Release \
+    -f net10.0 \
     -o /app \
     -p:SelfContained=false
 
