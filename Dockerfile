@@ -1,7 +1,7 @@
 # -- Backend build --
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS backend-build
 WORKDIR /build
-COPY global.json .
+COPY .editorconfig global.json ./
 COPY src/ src/
 RUN dotnet publish src/NzbDrone.Console/Sonarr.Console.csproj \
     -c Release \

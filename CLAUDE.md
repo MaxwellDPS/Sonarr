@@ -25,7 +25,7 @@ dotnet build src/Sonarr.sln /p:Platform=Posix
 dotnet run --project src/NzbDrone.Console
 ```
 
-### Frontend
+### Frontend (run from repo root)
 ```bash
 yarn install                # Install dependencies
 yarn start                  # Watch mode for development
@@ -80,7 +80,7 @@ Controllers (Sonarr.Api.V5) → Services (NzbDrone.Core) → Repositories (NzbDr
 - **SignalR**: `RestControllerWithSignalR` auto-broadcasts model changes to connected frontend clients.
 
 ### Database Migrations
-FluentMigrator with numbered migrations in `NzbDrone.Core/Datastore/Migration/`. Migrations extend `NzbDroneMigrationBase` and override `MainDbUpgrade()` or `LogDbUpgrade()`.
+FluentMigrator with sequentially numbered migrations in `NzbDrone.Core/Datastore/Migration/` (format: `XXX_description.cs`, e.g. `225_mediainfo_multiple_streams.cs`). Migrations extend `NzbDroneMigrationBase` and override `MainDbUpgrade()` or `LogDbUpgrade()`.
 
 ### Frontend Structure
 - **Framework**: React 18 with TypeScript, Redux + Zustand for state, React Query for server state
@@ -101,6 +101,7 @@ FluentMigrator with numbered migrations in `NzbDrone.Core/Datastore/Migration/`.
 - File-scoped namespaces in newer code, block namespaces in Core
 
 ### Frontend
+- 2 spaces indentation (per `.editorconfig`)
 - ESLint + Prettier (single quotes, trailing commas)
 - camelCase filenames matching exported component names
 - Simple-import-sort for import ordering
