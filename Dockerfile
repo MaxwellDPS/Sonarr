@@ -2,6 +2,7 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS backend-build
 WORKDIR /build
 COPY .editorconfig global.json ./
+COPY Logo/ Logo/
 COPY src/ src/
 RUN dotnet publish src/NzbDrone.Console/Sonarr.Console.csproj \
     -c Release \
