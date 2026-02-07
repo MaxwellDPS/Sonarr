@@ -1,15 +1,22 @@
 # -- Backend build --
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS backend-build
+ARG TARGETARCH
 WORKDIR /build
 COPY .editorconfig global.json ./
 COPY Logo/ Logo/
 COPY src/ src/
-RUN dotnet publish src/NzbDrone.Console/Sonarr.Console.csproj \
+RUN dotnet_rid="linux-musl-$([ "$TARGETARCH" = "amd64" ] && echo x64 || echo $TARGETARCH)" && \
+    dotnet publish src/NzbDrone.Console/Sonarr.Console.csproj \
     -c Release \
     -f net10.0 \
-    -r linux-musl-x64 \
+    -r "$dotnet_rid" \
     -o /app \
-    --self-contained
+    --self-contained && \
+    dotnet publish src/NzbDrone.Mono/Sonarr.Mono.csproj \
+    -c Release \
+    -f net10.0 \
+    -r "$dotnet_rid" \
+    -o /app
 
 # -- Frontend build --
 FROM node:20-slim AS frontend-build
