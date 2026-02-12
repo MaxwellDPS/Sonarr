@@ -320,6 +320,15 @@ namespace NzbDrone.Core.Download.Clients.Seedr
                 try
                 {
                     var folderContents = _proxy.GetFolderContents(folder.Id, settings);
+
+                    if (folderContents?.Files == null || folderContents.Files.Count == 0)
+                    {
+                        _logger.Warn("No files found in Seedr folder '{0}'", folder.Name);
+                        mapping.LocalDownloadInProgress = false;
+                        _downloadCache.Set(mapping.InfoHash, mapping);
+                        return;
+                    }
+
                     var localDir = Path.Combine(settings.DownloadDirectory, folder.Name);
 
                     _diskProvider.CreateFolder(localDir);
@@ -327,6 +336,12 @@ namespace NzbDrone.Core.Download.Clients.Seedr
                     foreach (var file in folderContents.Files)
                     {
                         var response = _proxy.DownloadFile(file.Id, settings);
+
+                        if (response?.ResponseData == null)
+                        {
+                            throw new InvalidOperationException($"Failed to download file '{file.Name}' from Seedr cloud: empty response");
+                        }
+
                         var filePath = Path.Combine(localDir, file.Name);
 
                         File.WriteAllBytes(filePath, response.ResponseData);
@@ -362,6 +377,12 @@ namespace NzbDrone.Core.Download.Clients.Seedr
                 try
                 {
                     var response = _proxy.DownloadFile(file.Id, settings);
+
+                    if (response?.ResponseData == null)
+                    {
+                        throw new InvalidOperationException($"Failed to download file '{file.Name}' from Seedr cloud: empty response");
+                    }
+
                     var filePath = Path.Combine(settings.DownloadDirectory, file.Name);
 
                     File.WriteAllBytes(filePath, response.ResponseData);

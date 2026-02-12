@@ -210,6 +210,10 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.SeedrTests
                       }
                   });
 
+            Mocker.GetMock<ISeedrProxy>()
+                  .Setup(s => s.DownloadFile(200, It.IsAny<SeedrSettings>()))
+                  .Returns(new HttpResponse(new HttpRequest("http://test"), new HttpHeader(), Array.Empty<byte>()));
+
             var item = Subject.GetItems().Single();
 
             item.Status.Should().Be(DownloadItemStatus.Downloading);
