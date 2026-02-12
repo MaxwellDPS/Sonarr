@@ -4,14 +4,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Sonarr is a PVR (Personal Video Recorder) for Usenet and BitTorrent users. It has a C# backend (ASP.NET Core / .NET 10.0) and a React/TypeScript frontend. The project uses two databases: SQLite (default) and PostgreSQL.
+This is a custom fork of [Sonarr](https://github.com/Sonarr/Sonarr) that adds a **Seedr.cc download client**. Sonarr is a PVR (Personal Video Recorder) for Usenet and BitTorrent users. It has a C# backend (ASP.NET Core / .NET 10.0) and a React/TypeScript frontend. The project uses two databases: SQLite (default) and PostgreSQL.
+
+### Seedr.cc Download Client (Fork Addition)
+The Seedr download client is in `src/NzbDrone.Core/Download/Clients/Seedr/` and extends `TorrentClientBase<SeedrSettings>`. It uses Seedr's cloud torrent service as an intermediary: torrents are uploaded to Seedr (via magnet link or .torrent file), Seedr downloads them in the cloud, then the client fetches completed files to a local download directory via the Seedr REST API (`https://www.seedr.cc/rest`).
+
+Key files:
+- **`Seedr.cs`** - Main download client. Manages the two-phase flow: cloud torrent completion then local file download. Uses an in-memory cache (`SeedrDownloadMapping`) to track torrent hash → Seedr transfer/folder ID mapping.
+- **`SeedrProxy.cs`** (`ISeedrProxy`) - HTTP client wrapper for the Seedr REST API. Handles authentication (Basic auth with email/password), folder listing, magnet/torrent uploads, file downloads, and deletion.
+- **`SeedrSettings.cs`** - Configuration: Email, Password, DownloadDirectory, DeleteFromCloud (auto-delete from Seedr after import).
+- **`SeedrFolder.cs`** / **`SeedrTransfer.cs`** / **`SeedrUser.cs`** - API response models.
+- **Tests**: `src/NzbDrone.Core.Test/Download/DownloadClientTests/SeedrTests/SeedrFixture.cs`
 
 ## Build & Development Commands
 
 ### Prerequisites
 - .NET SDK 10.0.102 (see `global.json`)
-- Node.js 20.11.1
-- Yarn 1.22.22+
+- Node.js 20.11.1 / Yarn 1.22.22+ (managed via Volta, see `package.json`)
 
 ### Backend
 ```bash
@@ -74,6 +83,13 @@ Controllers (Sonarr.Api.V5) → Services (NzbDrone.Core) → Repositories (NzbDr
 - **Repositories** extend `BasicRepository<TModel>` using Dapper for SQL mapping. Models extend `ModelBase` (which provides `int Id`).
 - **Resources** (API DTOs) extend `RestResource` with static mapper extension methods (`ToResource()`/`ToModel()`).
 
+### Provider Pattern
+Indexers, download clients, and notifications use a generic provider system defined in `NzbDrone.Core/ThingiProvider/`. Each provider type has:
+- **Provider interface** (e.g., `IIndexer`, `IDownloadClient`) extending `IProvider`
+- **ProviderDefinition** subclass storing user configuration (name, settings, implementation type)
+- **ProviderFactory** subclass (e.g., `IndexerFactory`) managing CRUD and lifecycle via `ProviderFactory<TProvider, TProviderDefinition>`
+- **Settings class** implementing `IProviderConfig` with a FluentValidation validator for configuration validation
+
 ### Command & Event System
 - **Commands**: Async operations modeled as classes extending `Command`. Executed by services implementing `IExecute<TCommand>`. Queued via `IManageCommandQueue`.
 - **Events**: Published via `IEventAggregator.PublishEvent()`. Handlers implement `IHandle<TEvent>` (sync) or `IHandleAsync<TEvent>` (async).
@@ -83,7 +99,7 @@ Controllers (Sonarr.Api.V5) → Services (NzbDrone.Core) → Repositories (NzbDr
 FluentMigrator with sequentially numbered migrations in `NzbDrone.Core/Datastore/Migration/` (format: `XXX_description.cs`, e.g. `225_mediainfo_multiple_streams.cs`). Migrations extend `NzbDroneMigrationBase` and override `MainDbUpgrade()` or `LogDbUpgrade()`.
 
 ### Frontend Structure
-- **Framework**: React 18 with TypeScript, Redux + Zustand for state, React Query for server state
+- **Framework**: React 18 with TypeScript, Redux + Zustand for state, @tanstack/react-query for server state
 - **Build**: Webpack 5, Babel, PostCSS with CSS Modules
 - **Styling**: CSS Modules with typed exports, CSS variables, theme support (dark/light)
 - **Organization**: Feature-based directories under `frontend/src/` (Series, Episodes, Calendar, Settings, etc.) with shared components in `Components/`
@@ -99,6 +115,8 @@ FluentMigrator with sequentially numbered migrations in `NzbDrone.Core/Datastore
 - 4 spaces indentation, unix line endings
 - Warnings treated as errors (StyleCop + FxCop analyzers enabled)
 - File-scoped namespaces in newer code, block namespaces in Core
+- Private fields use `_camelCase` prefix (e.g., `private readonly ISeriesService _seriesService`)
+- Prefer `var` everywhere (enforced as error via IDE0007)
 
 ### Frontend
 - 2 spaces indentation (per `.editorconfig`)

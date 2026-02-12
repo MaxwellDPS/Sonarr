@@ -16,7 +16,8 @@ RUN dotnet_rid="linux-musl-$([ "$TARGETARCH" = "amd64" ] && echo x64 || echo $TA
     -c Release \
     -f net10.0 \
     -r "$dotnet_rid" \
-    -o /app
+    -o /app-mono && \
+    cp -rn /app-mono/* /app/
 
 # -- Frontend build --
 FROM node:20-slim AS frontend-build
