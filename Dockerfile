@@ -19,11 +19,11 @@ RUN dotnet_rid="linux-musl-$([ "$TARGETARCH" = "amd64" ] && echo x64 || echo $TA
     -o /app-mono && \
     cp -rn /app-mono/* /app/
 
-# -- Frontend build --
-FROM node:20-slim AS frontend-build
+# -- Frontend build (arch-independent, always run natively) --
+FROM --platform=$BUILDPLATFORM node:20-slim AS frontend-build
 WORKDIR /build
 COPY package.json yarn.lock .yarnrc ./
-RUN yarn install --frozen-lockfile
+RUN yarn install --frozen-lockfile --network-timeout 600000
 COPY frontend/ frontend/
 COPY tsconfig.json ./
 RUN yarn build --env production
