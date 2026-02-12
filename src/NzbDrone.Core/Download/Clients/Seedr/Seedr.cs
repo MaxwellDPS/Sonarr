@@ -344,7 +344,10 @@ namespace NzbDrone.Core.Download.Clients.Seedr
 
                         var filePath = Path.Combine(localDir, file.Name);
 
-                        File.WriteAllBytes(filePath, response.ResponseData);
+                        using (var stream = new MemoryStream(response.ResponseData))
+                        {
+                            _diskProvider.SaveStream(stream, filePath);
+                        }
                     }
 
                     mapping.LocalDownloadComplete = true;
@@ -385,7 +388,10 @@ namespace NzbDrone.Core.Download.Clients.Seedr
 
                     var filePath = Path.Combine(settings.DownloadDirectory, file.Name);
 
-                    File.WriteAllBytes(filePath, response.ResponseData);
+                    using (var stream = new MemoryStream(response.ResponseData))
+                    {
+                        _diskProvider.SaveStream(stream, filePath);
+                    }
 
                     mapping.LocalDownloadComplete = true;
                     mapping.LocalDownloadInProgress = false;
