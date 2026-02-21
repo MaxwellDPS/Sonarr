@@ -42,4 +42,4 @@ COPY --from=backend-build /app /app/sonarr/bin
 COPY --from=frontend-build /build/_output/UI /app/sonarr/bin/UI
 RUN cp /tmp/ffprobe /app/sonarr/bin/ffprobe && chmod +x /app/sonarr/bin/ffprobe
 # Update package info to reflect custom build
-RUN echo -e "UpdateMethod=docker\nBranch=v5-develop\nPackageVersion=custom\nPackageAuthor=custom-build" > /app/sonarr/package_info
+RUN echo -e "UpdateMethod=docker\nBranch=main\nPackageVersion=custom\nPackageAuthor=custom-build" > /app/sonarr/package_info
