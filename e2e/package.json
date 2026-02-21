@@ -1,0 +1,19 @@
+{
+  "name": "sonarr-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Playwright E2E tests for Sonarr Seedr download client",
+  "scripts": {
+    "test": "playwright test",
+    "test:api": "playwright test seedr-api-only",
+    "test:ui": "playwright test seedr-download-client",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "dotenv": "^16.4.0",
+    "typescript": "^5.7.0"
+  }
+}

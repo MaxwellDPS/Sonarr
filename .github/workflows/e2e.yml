@@ -1,0 +1,49 @@
+name: E2E Tests
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * 0' # Weekly on Sunday at 6am UTC
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install E2E dependencies
+        working-directory: e2e
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        working-directory: e2e
+        run: npx playwright install chromium --with-deps
+
+      - name: Build Docker image
+        run: docker build -t sonarr-custom .
+
+      - name: Run E2E tests
+        working-directory: e2e
+        env:
+          SEEDR_EMAIL: ${{ secrets.SEEDR_EMAIL }}
+          SEEDR_PASSWORD: ${{ secrets.SEEDR_PASSWORD }}
+          SKIP_BUILD: 'true'
+        run: npx playwright test
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-results
+          path: |
+            e2e/test-results/
+            e2e/playwright-report/
+          retention-days: 14

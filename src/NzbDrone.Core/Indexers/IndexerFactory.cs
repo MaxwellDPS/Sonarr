@@ -94,6 +94,12 @@ namespace NzbDrone.Core.Indexers
 
         public IndexerDefinition ResolveIndexer(int? id, string name)
         {
+            // Treat 0 as "not provided" since IDs start at 1
+            if (id is 0)
+            {
+                id = null;
+            }
+
             var all = All();
             var clientByName = name.IsNullOrWhiteSpace() ? null : all.FirstOrDefault(c => c.Name.EqualsIgnoreCase(name));
             var clientById = id.HasValue ? all.FirstOrDefault(c => c.Id == id.Value) : null;

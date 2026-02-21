@@ -1,0 +1,26 @@
+services:
+  sonarr:
+    image: sonarr-custom
+    container_name: sonarr-e2e
+    ports:
+      - "18989:8989"
+    volumes:
+      - sonarr-config:/config
+      - sonarr-downloads:/downloads
+      - sonarr-tv:/tv
+    environment:
+      - PUID=0
+      - PGID=0
+      - TZ=Etc/UTC
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8989/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: "no"
+
+volumes:
+  sonarr-config:
+  sonarr-downloads:
+  sonarr-tv:
