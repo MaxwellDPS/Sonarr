@@ -142,7 +142,11 @@ test.describe.serial(
         ...release,
         downloadClientId: createdClientId,
       });
-      console.log('Push result:', JSON.stringify(pushResult, null, 2));
+
+      // Verify the release was approved (not rejected by quality/size checks)
+      expect(pushResult).toHaveLength(1);
+      expect(pushResult[0].approved).toBe(true);
+      expect(pushResult[0].rejected).toBe(false);
     });
 
     test('verify queue status transitions', async ({
@@ -246,9 +250,8 @@ test.describe.serial(
       await page.goto('/activity/queue');
       await page.waitForLoadState('networkidle');
 
-      // The queue may be empty if import completed, or show the item
-      // This is a visual verification that the page loads without errors
-      await expect(page.locator('[class*="page"]')).toBeVisible();
+      // Visual verification that the queue page loads without errors
+      await expect(page.getByText('Total records')).toBeVisible();
     });
 
     test('cleanup', async ({ sonarrApi, seedrApi }) => {
