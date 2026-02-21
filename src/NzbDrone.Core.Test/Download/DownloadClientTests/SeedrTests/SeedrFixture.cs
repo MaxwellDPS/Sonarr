@@ -503,6 +503,8 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.SeedrTests
             var items = Subject.GetItems().ToList();
 
             items.Should().BeEmpty();
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
@@ -527,6 +529,8 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.SeedrTests
 
             Subject.Invoking(s => s.RemoveItem(item, false))
                    .Should().NotThrow();
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
@@ -551,6 +555,8 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.SeedrTests
 
             Subject.Invoking(s => s.MarkItemAsImported(item))
                    .Should().NotThrow();
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
