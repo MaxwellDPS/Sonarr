@@ -3,11 +3,10 @@ name: Merge Conflict Labeler
 on:
   push:
     branches:
-      - develop
+      - main
   pull_request_target:
     branches:
-      - develop
-      - v5-develop
+      - main
     types: [synchronize]
 
 jobs:

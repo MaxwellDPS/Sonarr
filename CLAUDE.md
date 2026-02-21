@@ -125,6 +125,6 @@ FluentMigrator with sequentially numbered migrations in `NzbDrone.Core/Datastore
 - Simple-import-sort for import ordering
 
 ## Contributing
-- PRs target `v5-develop` branch only (never `main`)
-- Rebase from `v5-develop`, don't merge
+- PRs target `main` branch
+- Rebase from `main`, don't merge
 - One feature/bug fix per PR
