@@ -6,6 +6,11 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
 
+    <!-- Disable analyzers in Debug to speed up local builds -->
+    <EnableAnalyzers Condition="'$(Configuration)' == 'Debug'">false</EnableAnalyzers>
+    <EnforceCodeStyleInBuild Condition="'$(Configuration)' == 'Debug'">false</EnforceCodeStyleInBuild>
+    <GenerateDocumentationFile Condition="'$(Configuration)' == 'Debug'">false</GenerateDocumentationFile>
+
     <PlatformTarget>AnyCPU</PlatformTarget>
     <TargetLatestRuntimePatch>true</TargetLatestRuntimePatch>
     <RuntimeIdentifiers>win-x64;win-x86;osx-x64;osx-arm64;linux-x64;linux-musl-x64;linux-arm;linux-arm64;linux-musl-arm64</RuntimeIdentifiers>
@@ -31,8 +36,8 @@
     <TestProject>false</TestProject>
     <TestProject Condition="$(MSBuildProjectName.EndsWith('.Test'))">true</TestProject>
 
-    <!-- XML documentation comments are needed to enforce rule IDE0005 on build -->
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- XML documentation comments are needed to enforce rule IDE0005 on build (Release only, see above) -->
+    <GenerateDocumentationFile Condition="'$(Configuration)' != 'Debug'">true</GenerateDocumentationFile>
     <!--
         CS1591: Missing XML comment for publicly visible type or member 'Type_or_Member'
     -->

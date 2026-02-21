@@ -19,22 +19,30 @@ Key files:
 ## Build & Development Commands
 
 ### Prerequisites
-- .NET SDK 10.0.102 (see `global.json`)
+- **Docker** - .NET SDK is not installed on the host; all backend build and test commands must be run inside Docker using the `mcr.microsoft.com/dotnet/sdk:10.0.102` image.
 - Node.js 20.11.1 / Yarn 1.22.22+ (managed via Volta, see `package.json`)
 
-### Backend
+### Docker Helper
+All backend commands below use a volume mount from the repo root. Run them from the repository root:
 ```bash
-# Build the solution
-dotnet build src/Sonarr.sln
-
-# Build for specific platform
-dotnet build src/Sonarr.sln /p:Platform=Posix
-
-# Run the application (default port 8989)
-dotnet run --project src/NzbDrone.Console
+# Shorthand used in examples below:
+# "docker-dotnet <command>" expands to:
+docker run --rm -v "$(pwd):/build" -w /build mcr.microsoft.com/dotnet/sdk:10.0.102 <command>
 ```
 
-### Frontend (run from repo root)
+### Backend (via Docker)
+```bash
+# Build the solution
+docker run --rm -v "$(pwd):/build" -w /build mcr.microsoft.com/dotnet/sdk:10.0.102 dotnet build src/Sonarr.sln
+
+# Build for specific platform
+docker run --rm -v "$(pwd):/build" -w /build mcr.microsoft.com/dotnet/sdk:10.0.102 dotnet build src/Sonarr.sln /p:Platform=Posix
+
+# Build the full Docker image (backend + frontend + runtime)
+docker build -t sonarr-custom .
+```
+
+### Frontend (run from repo root, Node.js available on host)
 ```bash
 yarn install                # Install dependencies
 yarn start                  # Watch mode for development
@@ -44,19 +52,19 @@ yarn lint-fix               # ESLint with auto-fix
 yarn stylelint              # CSS linting
 ```
 
-### Testing
+### Testing (via Docker)
 ```bash
 # Run all unit tests
-dotnet test src/Sonarr.sln --filter "TestCategory!=ManualTest&TestCategory!=WINDOWS&TestCategory!=IntegrationTest&TestCategory!=AutomationTest"
+docker run --rm -v "$(pwd):/build" -w /build mcr.microsoft.com/dotnet/sdk:10.0.102 dotnet test src/Sonarr.sln --filter "TestCategory!=ManualTest&TestCategory!=WINDOWS&TestCategory!=IntegrationTest&TestCategory!=AutomationTest"
 
 # Run a specific test project
-dotnet test src/NzbDrone.Core.Test/Sonarr.Core.Test.csproj
+docker run --rm -v "$(pwd):/build" -w /build mcr.microsoft.com/dotnet/sdk:10.0.102 dotnet test src/NzbDrone.Core.Test/Sonarr.Core.Test.csproj
 
 # Run a single test by name
-dotnet test src/NzbDrone.Core.Test/Sonarr.Core.Test.csproj --filter "FullyQualifiedName~ConfigServiceFixture.Add_new_value"
+docker run --rm -v "$(pwd):/build" -w /build mcr.microsoft.com/dotnet/sdk:10.0.102 dotnet test src/NzbDrone.Core.Test/Sonarr.Core.Test.csproj --filter "FullyQualifiedName~ConfigServiceFixture.Add_new_value"
 
 # Run integration tests (requires running Sonarr instance)
-dotnet test src/NzbDrone.Integration.Test/Sonarr.Integration.Test.csproj
+docker run --rm -v "$(pwd):/build" -w /build mcr.microsoft.com/dotnet/sdk:10.0.102 dotnet test src/NzbDrone.Integration.Test/Sonarr.Integration.Test.csproj
 ```
 
 ## Architecture

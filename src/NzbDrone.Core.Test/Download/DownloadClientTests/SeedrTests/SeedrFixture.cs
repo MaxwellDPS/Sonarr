@@ -11,6 +11,7 @@ using NzbDrone.Common.Http;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Download.Clients;
 using NzbDrone.Core.Download.Clients.Seedr;
+using NzbDrone.Core.Localization;
 using NzbDrone.Core.MediaFiles.TorrentInfo;
 using NzbDrone.Test.Common;
 
@@ -53,6 +54,10 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.SeedrTests
             Mocker.GetMock<ISeedrProxy>()
                   .Setup(s => s.GetFolderContents(null, It.IsAny<SeedrSettings>()))
                   .Returns(() => _folderContents);
+
+            Mocker.GetMock<ILocalizationService>()
+                  .Setup(s => s.GetLocalizedString(It.IsAny<string>(), It.IsAny<Dictionary<string, object>>()))
+                  .Returns<string, Dictionary<string, object>>((key, args) => key);
         }
 
         protected void GivenTransfer(long id, string name, int progress, long size, string hash = null)
@@ -92,12 +97,11 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.SeedrTests
         {
             Mocker.GetMock<ISeedrProxy>()
                   .Setup(s => s.AddMagnet(It.IsAny<string>(), It.IsAny<SeedrSettings>()))
-                  .Returns(new SeedrTransfer
+                  .Returns(new SeedrAddTransferResponse
                   {
                       Id = 1,
                       Name = _title,
-                      Progress = 0,
-                      Size = 1000
+                      Hash = "CBC2F069FE8BB2F544EAE707D75BCD3DE9DCF951"
                   });
         }
 
@@ -105,12 +109,11 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.SeedrTests
         {
             Mocker.GetMock<ISeedrProxy>()
                   .Setup(s => s.AddTorrentFile(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<SeedrSettings>()))
-                  .Returns(new SeedrTransfer
+                  .Returns(new SeedrAddTransferResponse
                   {
                       Id = 1,
                       Name = _title,
-                      Progress = 0,
-                      Size = 1000
+                      Hash = "CBC2F069FE8BB2F544EAE707D75BCD3DE9DCF951"
                   });
         }
 
@@ -119,6 +122,11 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.SeedrTests
             Mocker.GetMock<IDiskProvider>()
                   .Setup(s => s.FolderExists(It.Is<string>(p => p.EndsWith(name))))
                   .Returns(true);
+
+            // FolderExistsWithCompletedFiles requires at least one non-.part file
+            Mocker.GetMock<IDiskProvider>()
+                  .Setup(s => s.GetFiles(It.Is<string>(p => p.EndsWith(name)), true))
+                  .Returns(new[] { "/downloads/" + name + "/episode.mkv" });
         }
 
         protected void GivenLocalFileExists(string name)
@@ -210,10 +218,6 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.SeedrTests
                       }
                   });
 
-            Mocker.GetMock<ISeedrProxy>()
-                  .Setup(s => s.DownloadFile(200, It.IsAny<SeedrSettings>()))
-                  .Returns(new HttpResponse(new HttpRequest("http://test"), new HttpHeader(), Array.Empty<byte>()));
-
             var item = Subject.GetItems().Single();
 
             item.Status.Should().Be(DownloadItemStatus.Downloading);
@@ -255,10 +259,6 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.SeedrTests
 
             _folderContents.Transfers.Clear();
             GivenFile(200, _title, 1000);
-
-            Mocker.GetMock<ISeedrProxy>()
-                  .Setup(s => s.DownloadFile(200, It.IsAny<SeedrSettings>()))
-                  .Returns(new HttpResponse(new HttpRequest("http://test"), new HttpHeader(), Array.Empty<byte>()));
 
             var item = Subject.GetItems().Single();
 
@@ -383,6 +383,28 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.SeedrTests
         }
 
         [Test]
+        public void RemoveItem_should_delete_file_when_file_id_exists()
+        {
+            GivenSuccessfulTorrentDownload();
+
+            var remoteEpisode = CreateRemoteEpisode();
+
+            Subject.Download(remoteEpisode, CreateIndexer()).Wait();
+
+            // Simulate transfer completing to single file
+            _folderContents.Transfers.Clear();
+            GivenFile(200, _title, 1000);
+            GivenLocalFileExists(_title);
+
+            var item = Subject.GetItems().Single();
+
+            Subject.RemoveItem(item, false);
+
+            Mocker.GetMock<ISeedrProxy>()
+                  .Verify(v => v.DeleteFile(200, It.IsAny<SeedrSettings>()), Times.Once());
+        }
+
+        [Test]
         public void MarkItemAsImported_should_delete_from_cloud_when_enabled()
         {
             GivenSuccessfulMagnetDownload();
@@ -402,6 +424,27 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.SeedrTests
 
             Mocker.GetMock<ISeedrProxy>()
                   .Verify(v => v.DeleteFolder(100, It.IsAny<SeedrSettings>()), Times.Once());
+        }
+
+        [Test]
+        public void MarkItemAsImported_should_delete_file_from_cloud_when_enabled()
+        {
+            GivenSuccessfulTorrentDownload();
+
+            var remoteEpisode = CreateRemoteEpisode();
+
+            Subject.Download(remoteEpisode, CreateIndexer()).Wait();
+
+            _folderContents.Transfers.Clear();
+            GivenFile(200, _title, 1000);
+            GivenLocalFileExists(_title);
+
+            var item = Subject.GetItems().Single();
+
+            Subject.MarkItemAsImported(item);
+
+            Mocker.GetMock<ISeedrProxy>()
+                  .Verify(v => v.DeleteFile(200, It.IsAny<SeedrSettings>()), Times.Once());
         }
 
         [Test]
@@ -455,7 +498,7 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.SeedrTests
         {
             Mocker.GetMock<ISeedrProxy>()
                   .Setup(s => s.GetUser(It.IsAny<SeedrSettings>()))
-                  .Returns(new SeedrUser { Email = "test@test.com" });
+                  .Returns(new SeedrUser { Email = "test@test.com", SpaceUsed = 100, SpaceMax = 1000 });
 
             Mocker.GetMock<IDiskProvider>()
                   .Setup(s => s.FolderExists(@"/downloads".AsOsAgnostic()))
@@ -468,6 +511,26 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.SeedrTests
             var result = Subject.Test();
 
             result.IsValid.Should().BeTrue();
+        }
+
+        [Test]
+        public void Test_should_warn_when_cloud_storage_nearly_full()
+        {
+            Mocker.GetMock<ISeedrProxy>()
+                  .Setup(s => s.GetUser(It.IsAny<SeedrSettings>()))
+                  .Returns(new SeedrUser { Email = "test@test.com", SpaceUsed = 950, SpaceMax = 1000 });
+
+            Mocker.GetMock<IDiskProvider>()
+                  .Setup(s => s.FolderExists(@"/downloads".AsOsAgnostic()))
+                  .Returns(true);
+
+            Mocker.GetMock<IDiskProvider>()
+                  .Setup(s => s.FolderWritable(It.IsAny<string>()))
+                  .Returns(true);
+
+            var result = Subject.Test();
+
+            result.Errors.Should().ContainSingle(e => e is NzbDrone.Core.Validation.NzbDroneValidationFailure f && f.IsWarning);
         }
 
         [Test]
