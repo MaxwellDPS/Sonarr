@@ -3,8 +3,28 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0.102 AS backend-build
 ARG TARGETARCH
 WORKDIR /build
+
+# Layer 1: Copy project files and restore (cached until .csproj files change)
 COPY .editorconfig global.json ./
 COPY Logo/ Logo/
+COPY src/Directory.Build.props src/Directory.Build.targets src/NuGet.Config src/
+COPY src/*/*.csproj ./
+# Reconstruct directory structure: Sonarr.* csproj → NzbDrone.* dirs (legacy naming)
+RUN for f in *.csproj; do \
+        proj="$(basename "$f" .csproj)"; \
+        case "$proj" in \
+            Sonarr.Api.V*|Sonarr.Http|Sonarr.RuntimePatches) dir="src/$proj" ;; \
+            Sonarr) dir="src/NzbDrone" ;; \
+            Sonarr.*) dir="src/NzbDrone.${proj#Sonarr.}" ;; \
+            *) dir="src/$proj" ;; \
+        esac; \
+        mkdir -p "$dir"; mv "$f" "$dir/"; \
+    done && \
+    dotnet_rid="linux-musl-$([ "$TARGETARCH" = "amd64" ] && echo x64 || echo $TARGETARCH)" && \
+    dotnet restore src/NzbDrone.Console/Sonarr.Console.csproj -r "$dotnet_rid" && \
+    dotnet restore src/NzbDrone.Mono/Sonarr.Mono.csproj -r "$dotnet_rid"
+
+# Layer 2: Copy source and publish (only rebuilt when code changes)
 COPY src/ src/
 RUN dotnet_rid="linux-musl-$([ "$TARGETARCH" = "amd64" ] && echo x64 || echo $TARGETARCH)" && \
     dotnet publish src/NzbDrone.Console/Sonarr.Console.csproj \
@@ -12,12 +32,14 @@ RUN dotnet_rid="linux-musl-$([ "$TARGETARCH" = "amd64" ] && echo x64 || echo $TA
     -f net10.0 \
     -r "$dotnet_rid" \
     -o /app \
-    --self-contained && \
+    --self-contained \
+    --no-restore && \
     dotnet publish src/NzbDrone.Mono/Sonarr.Mono.csproj \
     -c Release \
     -f net10.0 \
     -r "$dotnet_rid" \
-    -o /app-mono && \
+    -o /app-mono \
+    --no-restore && \
     cp -rn /app-mono/* /app/
 
 # -- Frontend build (arch-independent, always run natively) --
