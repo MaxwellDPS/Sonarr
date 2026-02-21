@@ -1,0 +1,12 @@
+.git
+.github
+.vs
+.vscode
+_output
+_tests
+_temp
+node_modules
+*.md
+LICENSE
+azure-pipelines.yml
+scripts/

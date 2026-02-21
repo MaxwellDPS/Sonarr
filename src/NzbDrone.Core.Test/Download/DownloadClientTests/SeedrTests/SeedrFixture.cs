@@ -439,18 +439,6 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.SeedrTests
         }
 
         [Test]
-        public void Test_should_fail_if_not_premium()
-        {
-            Mocker.GetMock<ISeedrProxy>()
-                  .Setup(s => s.GetUser(It.IsAny<SeedrSettings>()))
-                  .Returns(new SeedrUser { IsPremium = false, Email = "test@test.com" });
-
-            var result = Subject.Test();
-
-            result.IsValid.Should().BeFalse();
-        }
-
-        [Test]
         public void Test_should_fail_on_authentication_error()
         {
             Mocker.GetMock<ISeedrProxy>()
@@ -463,11 +451,11 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.SeedrTests
         }
 
         [Test]
-        public void Test_should_pass_with_premium_user()
+        public void Test_should_pass_with_valid_user()
         {
             Mocker.GetMock<ISeedrProxy>()
                   .Setup(s => s.GetUser(It.IsAny<SeedrSettings>()))
-                  .Returns(new SeedrUser { IsPremium = true, Email = "test@test.com" });
+                  .Returns(new SeedrUser { Email = "test@test.com" });
 
             Mocker.GetMock<IDiskProvider>()
                   .Setup(s => s.FolderExists(@"/downloads".AsOsAgnostic()))
@@ -503,6 +491,87 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.SeedrTests
             var item = Subject.GetItems().Single();
 
             item.DownloadId.Should().Be("seedr-42");
+        }
+
+        [Test]
+        public void GetItems_should_return_empty_when_api_returns_null()
+        {
+            Mocker.GetMock<ISeedrProxy>()
+                  .Setup(s => s.GetFolderContents(null, It.IsAny<SeedrSettings>()))
+                  .Returns((SeedrFolderContents)null);
+
+            var items = Subject.GetItems().ToList();
+
+            items.Should().BeEmpty();
+        }
+
+        [Test]
+        public void RemoveItem_should_not_throw_when_cloud_delete_fails()
+        {
+            GivenSuccessfulMagnetDownload();
+
+            var remoteEpisode = CreateRemoteEpisode();
+            remoteEpisode.Release.DownloadUrl = "magnet:?xt=urn:btih:CBC2F069FE8BB2F544EAE707D75BCD3DE9DCF951&tr=udp";
+
+            Subject.Download(remoteEpisode, CreateIndexer()).Wait();
+
+            _folderContents.Transfers.Clear();
+            GivenFolder(100, _title, 1000);
+            GivenLocalFolderExists(_title);
+
+            Mocker.GetMock<ISeedrProxy>()
+                  .Setup(s => s.DeleteFolder(It.IsAny<long>(), It.IsAny<SeedrSettings>()))
+                  .Throws(new DownloadClientException("API error"));
+
+            var item = Subject.GetItems().Single();
+
+            Subject.Invoking(s => s.RemoveItem(item, false))
+                   .Should().NotThrow();
+        }
+
+        [Test]
+        public void MarkItemAsImported_should_not_throw_when_cloud_delete_fails()
+        {
+            GivenSuccessfulMagnetDownload();
+
+            var remoteEpisode = CreateRemoteEpisode();
+            remoteEpisode.Release.DownloadUrl = "magnet:?xt=urn:btih:CBC2F069FE8BB2F544EAE707D75BCD3DE9DCF951&tr=udp";
+
+            Subject.Download(remoteEpisode, CreateIndexer()).Wait();
+
+            _folderContents.Transfers.Clear();
+            GivenFolder(100, _title, 1000);
+            GivenLocalFolderExists(_title);
+
+            Mocker.GetMock<ISeedrProxy>()
+                  .Setup(s => s.DeleteFolder(It.IsAny<long>(), It.IsAny<SeedrSettings>()))
+                  .Throws(new DownloadClientException("API error"));
+
+            var item = Subject.GetItems().Single();
+
+            Subject.Invoking(s => s.MarkItemAsImported(item))
+                   .Should().NotThrow();
+        }
+
+        [Test]
+        public void MarkItemAsImported_should_delete_transfer_when_no_folder_id()
+        {
+            GivenSuccessfulMagnetDownload();
+
+            var remoteEpisode = CreateRemoteEpisode();
+            remoteEpisode.Release.DownloadUrl = "magnet:?xt=urn:btih:CBC2F069FE8BB2F544EAE707D75BCD3DE9DCF951&tr=udp";
+
+            Subject.Download(remoteEpisode, CreateIndexer()).Wait();
+
+            // Transfer is still active (no folder mapping)
+            GivenTransfer(1, _title, 50, 1000, "CBC2F069FE8BB2F544EAE707D75BCD3DE9DCF951");
+
+            var item = Subject.GetItems().Single();
+
+            Subject.MarkItemAsImported(item);
+
+            Mocker.GetMock<ISeedrProxy>()
+                  .Verify(v => v.DeleteTransfer(1, It.IsAny<SeedrSettings>()), Times.Once());
         }
     }
 }

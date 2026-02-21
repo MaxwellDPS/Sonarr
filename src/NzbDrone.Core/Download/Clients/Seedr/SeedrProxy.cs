@@ -32,7 +32,7 @@ namespace NzbDrone.Core.Download.Clients.Seedr
         {
             var requestBuilder = new HttpRequestBuilder("https://www.seedr.cc/rest")
             {
-                LogResponseContent = true,
+                LogResponseContent = false,
                 NetworkCredential = new BasicNetworkCredential(settings.Email, settings.Password)
             };
 
@@ -49,8 +49,9 @@ namespace NzbDrone.Core.Download.Clients.Seedr
             }
             catch (HttpException ex)
             {
-                if (ex.Response.StatusCode == HttpStatusCode.Forbidden ||
-                    ex.Response.StatusCode == HttpStatusCode.Unauthorized)
+                if (ex.Response != null &&
+                    (ex.Response.StatusCode == HttpStatusCode.Forbidden ||
+                     ex.Response.StatusCode == HttpStatusCode.Unauthorized))
                 {
                     throw new DownloadClientAuthenticationException("Failed to authenticate with Seedr.");
                 }
@@ -71,8 +72,10 @@ namespace NzbDrone.Core.Download.Clients.Seedr
         {
             var resource = folderId.HasValue ? $"/folder/{folderId.Value}" : "/folder";
             var request = BuildRequest(settings).Resource(resource).Build();
+            var response = HandleRequest(request);
 
-            return Json.Deserialize<SeedrFolderContents>(HandleRequest(request).Content);
+            return Json.Deserialize<SeedrFolderContents>(response.Content)
+                   ?? throw new DownloadClientException("Seedr API returned an empty folder response");
         }
 
         public SeedrTransfer AddMagnet(string magnetLink, SeedrSettings settings)
@@ -83,7 +86,10 @@ namespace NzbDrone.Core.Download.Clients.Seedr
                 .AddFormParameter("magnet", magnetLink)
                 .Build();
 
-            return Json.Deserialize<SeedrTransfer>(HandleRequest(request).Content);
+            var response = HandleRequest(request);
+
+            return Json.Deserialize<SeedrTransfer>(response.Content)
+                   ?? throw new DownloadClientException("Seedr API returned an empty transfer response");
         }
 
         public SeedrTransfer AddTorrentFile(string filename, byte[] fileContent, SeedrSettings settings)
@@ -94,7 +100,10 @@ namespace NzbDrone.Core.Download.Clients.Seedr
                 .AddFormUpload("file", filename, fileContent, "application/x-bittorrent")
                 .Build();
 
-            return Json.Deserialize<SeedrTransfer>(HandleRequest(request).Content);
+            var response = HandleRequest(request);
+
+            return Json.Deserialize<SeedrTransfer>(response.Content)
+                   ?? throw new DownloadClientException("Seedr API returned an empty transfer response");
         }
 
         public void DeleteTransfer(long transferId, SeedrSettings settings)
@@ -124,8 +133,10 @@ namespace NzbDrone.Core.Download.Clients.Seedr
         public SeedrUser GetUser(SeedrSettings settings)
         {
             var request = BuildRequest(settings).Resource("/user").Build();
+            var response = HandleRequest(request);
 
-            return Json.Deserialize<SeedrUser>(HandleRequest(request).Content);
+            return Json.Deserialize<SeedrUser>(response.Content)
+                   ?? throw new DownloadClientException("Seedr API returned an empty user response");
         }
 
         public HttpResponse DownloadFile(long fileId, SeedrSettings settings)

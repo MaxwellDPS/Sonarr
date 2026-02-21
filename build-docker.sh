@@ -8,7 +8,7 @@
 
 set -euo pipefail
 
-SDK_IMAGE="mcr.microsoft.com/dotnet/sdk:10.0"
+SDK_IMAGE="mcr.microsoft.com/dotnet/sdk:10.0.102"
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 ACTION="${1:-build}"
 TEST_FILTER="${2:-TestCategory!=ManualTest&TestCategory!=WINDOWS&TestCategory!=IntegrationTest&TestCategory!=AutomationTest}"

@@ -72,6 +72,13 @@ namespace NzbDrone.Core.Download.Clients.Seedr
         public override IEnumerable<DownloadClientItem> GetItems()
         {
             var contents = _proxy.GetFolderContents(null, Settings);
+
+            if (contents == null)
+            {
+                _logger.Warn("Seedr API returned null folder contents");
+                return Array.Empty<DownloadClientItem>();
+            }
+
             var items = new List<DownloadClientItem>();
             var cachedMappings = _downloadCache.Values.ToList();
 
@@ -131,7 +138,7 @@ namespace NzbDrone.Core.Download.Clients.Seedr
                     mapping.FolderId = folder.Id;
                     _downloadCache.Set(mapping.InfoHash, mapping);
 
-                    var localPath = Path.Combine(Settings.DownloadDirectory, folder.Name);
+                    var localPath = Path.Combine(Settings.DownloadDirectory, SanitizeFileName(folder.Name));
 
                     if (mapping.LocalDownloadComplete || _diskProvider.FolderExists(localPath))
                     {
@@ -183,7 +190,7 @@ namespace NzbDrone.Core.Download.Clients.Seedr
                         continue;
                     }
 
-                    var localPath = Path.Combine(Settings.DownloadDirectory, file.Name);
+                    var localPath = Path.Combine(Settings.DownloadDirectory, SanitizeFileName(file.Name));
 
                     if (mapping.LocalDownloadComplete || _diskProvider.FileExists(localPath))
                     {
@@ -230,13 +237,20 @@ namespace NzbDrone.Core.Download.Clients.Seedr
         {
             var mapping = _downloadCache.Find(item.DownloadId);
 
-            if (mapping?.FolderId != null)
+            try
             {
-                _proxy.DeleteFolder(mapping.FolderId.Value, Settings);
+                if (mapping?.FolderId != null)
+                {
+                    _proxy.DeleteFolder(mapping.FolderId.Value, Settings);
+                }
+                else if (mapping?.TransferId != null)
+                {
+                    _proxy.DeleteTransfer(mapping.TransferId.Value, Settings);
+                }
             }
-            else if (mapping?.TransferId != null)
+            catch (DownloadClientException ex)
             {
-                _proxy.DeleteTransfer(mapping.TransferId.Value, Settings);
+                _logger.Warn(ex, "Failed to remove item from Seedr cloud for {0}", item.DownloadId);
             }
 
             if (deleteData)
@@ -262,9 +276,20 @@ namespace NzbDrone.Core.Download.Clients.Seedr
             {
                 var mapping = _downloadCache.Find(downloadClientItem.DownloadId);
 
-                if (mapping?.FolderId != null)
+                try
                 {
-                    _proxy.DeleteFolder(mapping.FolderId.Value, Settings);
+                    if (mapping?.FolderId != null)
+                    {
+                        _proxy.DeleteFolder(mapping.FolderId.Value, Settings);
+                    }
+                    else if (mapping?.TransferId != null)
+                    {
+                        _proxy.DeleteTransfer(mapping.TransferId.Value, Settings);
+                    }
+                }
+                catch (DownloadClientException ex)
+                {
+                    _logger.Warn(ex, "Failed to delete imported item from Seedr cloud for {0}", downloadClientItem.DownloadId);
                 }
             }
 
@@ -273,11 +298,9 @@ namespace NzbDrone.Core.Download.Clients.Seedr
 
         protected override void Test(List<ValidationFailure> failures)
         {
-            SeedrUser user = null;
-
             try
             {
-                user = _proxy.GetUser(Settings);
+                _proxy.GetUser(Settings);
             }
             catch (DownloadClientAuthenticationException ex)
             {
@@ -288,11 +311,6 @@ namespace NzbDrone.Core.Download.Clients.Seedr
             {
                 failures.Add(new ValidationFailure("Email", ex.Message));
                 return;
-            }
-
-            if (!user.IsPremium)
-            {
-                failures.Add(new ValidationFailure("Email", _localizationService.GetLocalizedString("DownloadClientSeedrValidationPremiumRequired")));
             }
 
             var folderFailure = TestFolder(Settings.DownloadDirectory, "DownloadDirectory");
@@ -329,7 +347,7 @@ namespace NzbDrone.Core.Download.Clients.Seedr
                         return;
                     }
 
-                    var localDir = Path.Combine(settings.DownloadDirectory, folder.Name);
+                    var localDir = Path.Combine(settings.DownloadDirectory, SanitizeFileName(folder.Name));
 
                     _diskProvider.CreateFolder(localDir);
 
@@ -342,7 +360,7 @@ namespace NzbDrone.Core.Download.Clients.Seedr
                             throw new InvalidOperationException($"Failed to download file '{file.Name}' from Seedr cloud: empty response");
                         }
 
-                        var filePath = Path.Combine(localDir, file.Name);
+                        var filePath = Path.Combine(localDir, SanitizeFileName(file.Name));
 
                         using (var stream = new MemoryStream(response.ResponseData))
                         {
@@ -386,7 +404,7 @@ namespace NzbDrone.Core.Download.Clients.Seedr
                         throw new InvalidOperationException($"Failed to download file '{file.Name}' from Seedr cloud: empty response");
                     }
 
-                    var filePath = Path.Combine(settings.DownloadDirectory, file.Name);
+                    var filePath = Path.Combine(settings.DownloadDirectory, SanitizeFileName(file.Name));
 
                     using (var stream = new MemoryStream(response.ResponseData))
                     {
@@ -404,6 +422,18 @@ namespace NzbDrone.Core.Download.Clients.Seedr
                     _downloadCache.Set(mapping.InfoHash, mapping);
                 }
             });
+        }
+
+        private static string SanitizeFileName(string name)
+        {
+            var safeName = Path.GetFileName(name);
+
+            if (safeName.IsNullOrWhiteSpace())
+            {
+                throw new DownloadClientException($"Invalid file/folder name from Seedr API: '{name}'");
+            }
+
+            return safeName;
         }
 
         private class SeedrDownloadMapping
