@@ -500,6 +500,11 @@ namespace NzbDrone.Core.Download.Clients.Seedr
             {
                 var grabbedHistory = _downloadHistoryService.GetGrabbedItemsByDownloadClient(Definition.Id);
 
+                if (grabbedHistory == null)
+                {
+                    return null;
+                }
+
                 foreach (var historyItem in grabbedHistory)
                 {
                     if (_downloadHistoryService.DownloadAlreadyImported(historyItem.DownloadId))
