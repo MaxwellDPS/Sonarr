@@ -221,7 +221,7 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.SeedrTests
             var item = Subject.GetItems().Single();
 
             item.Status.Should().Be(DownloadItemStatus.Downloading);
-            item.Message.Should().Be("Downloading from Seedr cloud");
+            item.Message.Should().Be("Downloading from Seedr cloud to local");
             item.CanMoveFiles.Should().BeFalse();
             item.CanBeRemoved.Should().BeFalse();
         }
@@ -263,7 +263,7 @@ namespace NzbDrone.Core.Test.Download.DownloadClientTests.SeedrTests
             var item = Subject.GetItems().Single();
 
             item.Status.Should().Be(DownloadItemStatus.Downloading);
-            item.Message.Should().Be("Downloading from Seedr cloud");
+            item.Message.Should().Be("Downloading from Seedr cloud to local");
         }
 
         [Test]
