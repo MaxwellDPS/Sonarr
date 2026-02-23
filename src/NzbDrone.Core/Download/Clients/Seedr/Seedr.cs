@@ -249,7 +249,8 @@ namespace NzbDrone.Core.Download.Clients.Seedr
                     var localPath = Path.Combine(Settings.DownloadDirectory, SanitizeFileName(folder.Name));
 
                     // 3.6: Verify folder contains non-.part files before marking complete
-                    if (mapping.LocalDownloadComplete || (!mapping.LocalDownloadInProgress && FolderExistsWithCompletedFiles(localPath)))
+                    // Don't falsely mark as complete if a previous download failed partway through
+                    if (mapping.LocalDownloadComplete || (!mapping.LocalDownloadInProgress && !mapping.LocalDownloadFailed && FolderExistsWithCompletedFiles(localPath)))
                     {
                         mapping.LocalDownloadComplete = true;
                         mapping.LocalDownloadFailed = false;
@@ -337,7 +338,7 @@ namespace NzbDrone.Core.Download.Clients.Seedr
                     var localPath = Path.Combine(Settings.DownloadDirectory, SanitizeFileName(file.Name));
 
                     // 3.6: Check file exists and is not a .part file
-                    if (mapping.LocalDownloadComplete || (!mapping.LocalDownloadInProgress && FileExistsCompleted(localPath)))
+                    if (mapping.LocalDownloadComplete || (!mapping.LocalDownloadInProgress && !mapping.LocalDownloadFailed && FileExistsCompleted(localPath)))
                     {
                         mapping.LocalDownloadComplete = true;
                         mapping.LocalDownloadFailed = false;
@@ -688,9 +689,9 @@ namespace NzbDrone.Core.Download.Clients.Seedr
                     var localDir = Path.Combine(settings.DownloadDirectory, SanitizeFileName(folder.Name));
                     _diskProvider.CreateFolder(localDir);
 
-                    var filesDownloaded = DownloadFolderContentsRecursive(folder.Id, localDir, settings);
+                    var (filesDownloaded, filesFailed) = DownloadFolderContentsRecursive(folder.Id, localDir, settings);
 
-                    if (filesDownloaded == 0)
+                    if (filesDownloaded == 0 && filesFailed == 0)
                     {
                         throw new DownloadClientException($"Seedr folder '{folder.Name}' returned no files from API. The folder may still be processing on Seedr's servers.");
                     }
@@ -699,13 +700,22 @@ namespace NzbDrone.Core.Download.Clients.Seedr
 
                     if (currentMapping != null)
                     {
-                        currentMapping.LocalDownloadComplete = true;
-                        currentMapping.LocalDownloadInProgress = false;
-                        currentMapping.LocalDownloadFailed = false;
-                        _downloadCache.Set(infoHash, currentMapping);
+                        if (filesFailed > 0)
+                        {
+                            currentMapping.LocalDownloadInProgress = false;
+                            currentMapping.LocalDownloadFailed = true;
+                            _downloadCache.Set(infoHash, currentMapping);
+                            _logger.Warn("Partially downloaded Seedr folder '{0}': {1} files succeeded, {2} files failed. Will retry on next poll.", folder.Name, filesDownloaded, filesFailed);
+                        }
+                        else
+                        {
+                            currentMapping.LocalDownloadComplete = true;
+                            currentMapping.LocalDownloadInProgress = false;
+                            currentMapping.LocalDownloadFailed = false;
+                            _downloadCache.Set(infoHash, currentMapping);
+                            _logger.Info("Completed cloud-to-local download for Seedr folder '{0}' ({1} files)", folder.Name, filesDownloaded);
+                        }
                     }
-
-                    _logger.Info("Completed cloud-to-local download for Seedr folder '{0}' ({1} files)", folder.Name, filesDownloaded);
                 }
                 catch (Exception ex)
                 {
@@ -777,19 +787,28 @@ namespace NzbDrone.Core.Download.Clients.Seedr
             });
         }
 
-        // 3.2: Recursive helper for nested folder downloads. Returns number of files downloaded.
-        private int DownloadFolderContentsRecursive(long folderId, string localDir, SeedrSettings settings)
+        // 3.2: Recursive helper for nested folder downloads. Returns (downloaded, failed) counts.
+        private (int Downloaded, int Failed) DownloadFolderContentsRecursive(long folderId, string localDir, SeedrSettings settings)
         {
             var folderContents = _proxy.GetFolderContents(folderId, settings);
-            var fileCount = 0;
+            var downloaded = 0;
+            var failed = 0;
 
             if (folderContents?.Files != null)
             {
                 foreach (var file in folderContents.Files)
                 {
-                    var filePath = Path.Combine(localDir, SanitizeFileName(file.Name));
-                    _proxy.DownloadFileToPath(file.Id, filePath, settings);
-                    fileCount++;
+                    try
+                    {
+                        var filePath = Path.Combine(localDir, SanitizeFileName(file.Name));
+                        _proxy.DownloadFileToPath(file.Id, filePath, settings);
+                        downloaded++;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Warn(ex, "Failed to download file '{0}' (ID: {1}) from Seedr cloud, continuing with remaining files", file.Name, file.Id);
+                        failed++;
+                    }
                 }
             }
 
@@ -799,11 +818,13 @@ namespace NzbDrone.Core.Download.Clients.Seedr
                 {
                     var subDir = Path.Combine(localDir, SanitizeFileName(subFolder.Name));
                     _diskProvider.CreateFolder(subDir);
-                    fileCount += DownloadFolderContentsRecursive(subFolder.Id, subDir, settings);
+                    var (subDownloaded, subFailed) = DownloadFolderContentsRecursive(subFolder.Id, subDir, settings);
+                    downloaded += subDownloaded;
+                    failed += subFailed;
                 }
             }
 
-            return fileCount;
+            return (downloaded, failed);
         }
 
         // 3.6: Verify folder has at least one non-.part file
